@@ -1,4 +1,4 @@
-// src/components/canvas/Canvas2D.tsx
+// src/components/canvas/Canvas2D.tsx (VERSÃO FINAL COMPLETA)
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { useCanvasTransform } from '@/hooks/useCanvasTransform';
 import { useProjectStore } from '@/store/projectStore';
@@ -9,7 +9,9 @@ import { getRoomToolState } from './tools/roomTool';
 import { selectTool } from './tools/selectTool';
 import { wallTool } from './tools/wallTool';
 import { roomTool } from './tools/roomTool';
-import { doorTool, windowTool, furnitureTool } from './tools/transformTool';
+import { doorTool } from './tools/doorTool';
+import { windowTool } from './tools/windowTool';
+import { furnitureTool } from './tools/furnitureTool';
 import { drawGrid } from './render/drawGrid';
 import { drawWalls, drawWallInProgress } from './render/drawWall';
 import { drawRooms } from './render/drawRoom';
@@ -21,6 +23,8 @@ import { Toolbar } from './ui/Toolbar';
 import { ZoomControls } from './ui/ZoomControls';
 import { StatusBar } from './ui/StatusBar';
 import { FurniturePanel } from './ui/FurniturePanel';
+import { PropertiesPanel } from '../properties/PropertiesPanel';
+import { ExportPanel } from '../export/ExportPanel';
 import type { Tool, CanvasEvent, CanvasContext } from '@/types/canvas';
 import type { Point } from '@/types/geometry';
 
@@ -37,21 +41,31 @@ export function Canvas2D() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState('default');
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   const { transform, toWorld, toScreen, pan, zoom } = useCanvasTransform(canvasRef);
   const { walls, rooms, doors, windows, furniture, selection } = useProjectStore();
-  const { activeTool, showGrid, gridSize, snapEnabled, setPan } = useUIStore();
+  const { activeTool, showGrid, gridSize, snapEnabled } = useUIStore();
   
   const snapEngineRef = useRef(new SnapEngine({ enabled: snapEnabled }));
   const animationFrameRef = useRef<number>();
   const isDraggingRef = useRef(false);
+  const isPinchingRef = useRef(false);
   const lastPointerPosRef = useRef<Point>({ x: 0, y: 0 });
   const pointersRef = useRef<Map<number, Point>>(new Map());
+  const pinchStartDistanceRef = useRef(0);
+  const pinchStartScaleRef = useRef(1);
+
+  // Hidratação
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const snapPoint = useCallback((point: Point) => {
-    const endpoints = useProjectStore.getState().getWallEndpoints();
-    const lines = useProjectStore.getState().getWallLines().map(l => ({ start: l.start, end: l.end }));
+    const store = useProjectStore.getState();
+    const endpoints = store.getWallEndpoints();
+    const lines = store.getWallLines().map(l => ({ start: l.start, end: l.end }));
     snapEngineRef.current.setReferences(endpoints, lines);
     return snapEngineRef.current.snap(point);
   }, []);
@@ -107,17 +121,19 @@ export function Canvas2D() {
     const resizeCanvas = () => {
       const container = containerRef.current;
       if (!container) return;
-      canvas.width = container.clientWidth;
-      canvas.height = container.clientHeight;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = container.clientWidth * dpr;
+      canvas.height = container.clientHeight * dpr;
+      canvas.style.width = `${container.clientWidth}px`;
+      canvas.style.height = `${container.clientHeight}px`;
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.scale(dpr, dpr);
       render();
     };
 
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
-
-    return () => {
-      window.removeEventListener('resize', resizeCanvas);
-    };
+    return () => window.removeEventListener('resize', resizeCanvas);
   }, [render]);
 
   useEffect(() => {
@@ -140,32 +156,38 @@ export function Canvas2D() {
     setCursor
   }), [transform, snapPoint, toWorld, toScreen, render]);
 
+  // Touch/Mouse handlers otimizados
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     canvas.setPointerCapture(e.pointerId);
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const pos = { x: e.clientX, y: e.clientY };
+    pointersRef.current.set(e.pointerId, pos);
 
-    if (e.button === 2) {
-      setContextMenu({ x: e.clientX, y: e.clientY });
-      return;
-    }
-
+    // Dois dedos = pinch/zoom
     if (pointersRef.current.size === 2) {
-      isDraggingRef.current = false;
+      const points = Array.from(pointersRef.current.values());
+      pinchStartDistanceRef.current = Math.hypot(
+        points[0].x - points[1].x,
+        points[0].y - points[1].y
+      );
+      pinchStartScaleRef.current = transform.scale;
+      isPinchingRef.current = true;
       return;
     }
+
+    if (e.button === 2) return; // Menu de contexto
 
     isDraggingRef.current = true;
-    lastPointerPosRef.current = { x: e.clientX, y: e.clientY };
+    lastPointerPosRef.current = pos;
 
     const currentTool = tools[activeTool];
-    if (currentTool?.onPointerDown) {
+    if (currentTool?.onPointerDown && pointersRef.current.size === 1) {
       const event: CanvasEvent = {
-        point: toWorld({ x: e.clientX, y: e.clientY }),
-        screenPoint: { x: e.clientX, y: e.clientY },
+        point: toWorld(pos),
+        screenPoint: pos,
         pointerId: e.pointerId,
         pressure: e.pressure,
         buttons: e.buttons,
@@ -175,46 +197,51 @@ export function Canvas2D() {
       };
       currentTool.onPointerDown(event, getCanvasContext());
     }
-  }, [activeTool, toWorld, getCanvasContext]);
+  }, [activeTool, toWorld, getCanvasContext, transform.scale]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const pos = { x: e.clientX, y: e.clientY };
+    pointersRef.current.set(e.pointerId, pos);
 
-    if (pointersRef.current.size === 2) {
-      const pointers = Array.from(pointersRef.current.values());
-      const currentDistance = Math.hypot(
-        pointers[0].x - pointers[1].x,
-        pointers[0].y - pointers[1].y
+    // Pinch zoom com dois dedos
+    if (isPinchingRef.current && pointersRef.current.size === 2) {
+      const points = Array.from(pointersRef.current.values());
+      const distance = Math.hypot(
+        points[0].x - points[1].x,
+        points[0].y - points[1].y
       );
+      const scale = (distance / pinchStartDistanceRef.current) * pinchStartScaleRef.current;
+      const center = {
+        x: (points[0].x + points[1].x) / 2,
+        y: (points[0].y + points[1].y) / 2
+      };
       
-      if ((e as unknown as { lastPinchDistance?: number }).lastPinchDistance) {
-        const lastDistance = (e as unknown as { lastPinchDistance: number }).lastPinchDistance;
-        const scale = currentDistance / lastDistance;
-        const center = {
-          x: (pointers[0].x + pointers[1].x) / 2,
-          y: (pointers[0].y + pointers[1].y) / 2
-        };
-        zoom(scale, center);
-      }
-      (e as unknown as { lastPinchDistance: number }).lastPinchDistance = currentDistance;
+      // Aplicar zoom limitado
+      const newScale = Math.max(0.1, Math.min(5, scale));
+      // Usar o zoom do hook
+      const factor = newScale / transform.scale;
+      zoom(factor, center);
       return;
     }
 
-    if (isDraggingRef.current && activeTool === 'select') {
-      const dx = e.clientX - lastPointerPosRef.current.x;
-      const dy = e.clientY - lastPointerPosRef.current.y;
+    // Pan com um dedo (modo select) ou drag de objeto
+    if (isDraggingRef.current && pointersRef.current.size === 1 && activeTool === 'select') {
+      const dx = pos.x - lastPointerPosRef.current.x;
+      const dy = pos.y - lastPointerPosRef.current.y;
+      
+      // Se estiver movendo objeto, o tool handle isso
+      // Senão, faz pan
       pan(dx, dy);
-      lastPointerPosRef.current = { x: e.clientX, y: e.clientY };
-      return;
+      lastPointerPosRef.current = pos;
     }
 
     const currentTool = tools[activeTool];
-    if (currentTool?.onPointerMove) {
+    if (currentTool?.onPointerMove && pointersRef.current.size === 1) {
       const event: CanvasEvent = {
-        point: toWorld({ x: e.clientX, y: e.clientY }),
-        screenPoint: { x: e.clientX, y: e.clientY },
+        point: toWorld(pos),
+        screenPoint: pos,
         pointerId: e.pointerId,
         pressure: e.pressure,
         buttons: e.buttons,
@@ -224,16 +251,16 @@ export function Canvas2D() {
       };
       currentTool.onPointerMove(event, getCanvasContext());
     }
-  }, [activeTool, toWorld, getCanvasContext, pan, zoom]);
+  }, [activeTool, toWorld, getCanvasContext, pan, zoom, transform.scale]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     pointersRef.current.delete(e.pointerId);
     
     if (pointersRef.current.size < 2) {
-      (e as unknown as { lastPinchDistance?: number }).lastPinchDistance = undefined;
+      isPinchingRef.current = false;
     }
-
+    
     if (pointersRef.current.size === 0) {
       isDraggingRef.current = false;
     }
@@ -287,6 +314,21 @@ export function Canvas2D() {
     };
   }, [activeTool]);
 
+  if (isLoading) {
+    return (
+      <div style={{ 
+        width: '100vw', 
+        height: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: '#f5f5f5'
+      }}>
+        <div>Carregando CasaPro...</div>
+      </div>
+    );
+  }
+
   return (
     <div 
       ref={containerRef}
@@ -310,53 +352,17 @@ export function Canvas2D() {
         style={{
           touchAction: 'none',
           cursor,
-          display: 'block'
+          display: 'block',
+          width: '100%',
+          height: '100%'
         }}
       />
       <Toolbar />
       <ZoomControls />
       <StatusBar />
       <FurniturePanel />
-      {contextMenu && (
-        <div
-          style={{
-            position: 'fixed',
-            left: contextMenu.x,
-            top: contextMenu.y,
-            background: 'white',
-            borderRadius: '6px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            zIndex: 200
-          }}
-          onClick={() => setContextMenu(null)}
-        >
-          <button
-            onClick={() => {
-              if (selection) {
-                const { removeWall, removeRoom, removeDoor, removeWindow, removeFurniture, clearSelection } = useProjectStore.getState();
-                switch (selection.type) {
-                  case 'wall': removeWall(selection.id); break;
-                  case 'room': removeRoom(selection.id); break;
-                  case 'door': removeDoor(selection.id); break;
-                  case 'window': removeWindow(selection.id); break;
-                  case 'furniture': removeFurniture(selection.id); break;
-                }
-                clearSelection();
-              }
-              setContextMenu(null);
-            }}
-            style={{
-              padding: '8px 16px',
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: '#d32f2f'
-            }}
-          >
-            🗑️ Excluir
-          </button>
-        </div>
-      )}
+      <PropertiesPanel />
+      <ExportPanel />
     </div>
   );
 }
