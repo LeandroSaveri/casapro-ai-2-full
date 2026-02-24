@@ -16,7 +16,7 @@ export interface Room {
   points: Point[];
   area: number;
   color?: string;
-  height?: number;
+  height?: number;  // ✅ ADICIONAR ISSO
 }
 
 export interface Furniture {
