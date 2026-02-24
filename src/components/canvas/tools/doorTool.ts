@@ -1,4 +1,3 @@
-// src/components/canvas/tools/doorTool.ts
 import type { Tool, CanvasEvent, CanvasContext } from '@/types/canvas';
 import { useProjectStore } from '@/store/projectStore';
 import { useUIStore } from '@/store/uiStore';
@@ -20,18 +19,18 @@ export const doorTool: Tool = {
     for (const wall of store.walls) {
       const dist = pointToLineDistance(worldPoint, { start: wall.start, end: wall.end });
       if (dist < 20) {
-        // Calcular posição na parede (projeção)
         const dx = wall.end.x - wall.start.x;
         const dy = wall.end.y - wall.start.y;
         const len = Math.sqrt(dx * dx + dy * dy);
-        
+
         const t = ((worldPoint.x - wall.start.x) * dx + (worldPoint.y - wall.start.y) * dy) / (len * len);
         const clampedT = Math.max(0.1, Math.min(0.9, t));
-        
+
         const posX = wall.start.x + clampedT * dx;
         const posY = wall.start.y + clampedT * dy;
 
         store.addDoor({
+          id: uuidv4(),
           wallId: wall.id,
           position: { x: posX, y: posY },
           width: 90,
@@ -40,7 +39,7 @@ export const doorTool: Tool = {
           openAngle: 90,
           material: 'default'
         });
-        
+
         uiStore.setActiveTool('select');
         ctx.invalidate();
         return;
