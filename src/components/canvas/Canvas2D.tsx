@@ -1,27 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { useCanvasStore } from '@/store/canvasStore';
-import { useRoomStore } from '@/store/roomStore';
-import { useWallStore } from '@/store/wallStore';
-import { useFurnitureStore } from '@/store/furnitureStore';
-import { 
-  Grid3X3, 
-  MousePointer2, 
-  Maximize, 
-  Move, 
-  RotateCcw, 
-  ZoomIn, 
-  ZoomOut,
-  Save,
-  Download,
-  Ruler,
-  Calculator,
-  Type,
-  Eraser
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
-import type { Point, Wall, Room, Furniture, Tool } from '@/types/canvas';
+import { useProjectStore } from '@/store/projectStore';
+import { useUIStore } from '@/store/uiStore';
+import type { Point } from '@/types/geometry';
+import type { Wall, Room, Furniture } from '@/types/canvas';
 
 interface Canvas2DProps {
   className?: string;
@@ -30,31 +11,47 @@ interface Canvas2DProps {
 export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  
+
+  // Estados de transformação (locais)
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+
+  // Estados do useUIStore
   const { 
-    scale, 
-    offset, 
-    setScale, 
-    setOffset,
-    isPanning,
-    setIsPanning,
-    showGrid,
-    gridSize,
-    snapToGrid
-  } = useCanvasStore();
-  
-  const { rooms, addRoom, selectedRoom, setSelectedRoom } = useRoomStore();
-  const { walls, addWall, selectedWall, setSelectedWall } = useWallStore();
-  const { furniture, addFurniture, selectedFurniture, setSelectedFurniture } = useFurnitureStore();
-  
-  const [activeTool, setActiveTool] = useState<Tool>('select');
+    activeTool, 
+    setActiveTool, 
+    showGrid, 
+    gridSize, 
+    snapToGrid 
+  } = useUIStore();
+
+  // Estados do useProjectStore
+  const { 
+    walls, 
+    rooms, 
+    furniture, 
+    selection, 
+    addWall, 
+    addRoom, 
+    addFurniture,
+    setSelection,
+    clearSelection 
+  } = useProjectStore();
+
+  // Estados de interação (locais)
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawStart, setDrawStart] = useState<Point | null>(null);
   const [currentPoints, setCurrentPoints] = useState<Point[]>([]);
   const [tempWall, setTempWall] = useState<Wall | null>(null);
   const [mousePos, setMousePos] = useState<Point>({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState<Point>({ x: 0, y: 0 });
-  
+
+  // Estados derivados de seleção
+  const selectedRoomId = selection?.type === 'room' ? selection.id : null;
+  const selectedWallId = selection?.type === 'wall' ? selection.id : null;
+  const selectedFurnitureId = selection?.type === 'furniture' ? selection.id : null;
+
   const screenToCanvas = useCallback((screenX: number, screenY: number): Point => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -64,7 +61,7 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
       y: (screenY - rect.top - offset.y) / scale
     };
   }, [scale, offset]);
-  
+
   const snapPoint = useCallback((point: Point): Point => {
     if (!snapToGrid) return point;
     return {
@@ -72,7 +69,7 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
       y: Math.round(point.y / gridSize) * gridSize
     };
   }, [snapToGrid, gridSize]);
-  
+
   const calculateArea = (points: Point[]): number => {
     if (points.length < 3) return 0;
     let area = 0;
@@ -83,7 +80,7 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     }
     return Math.abs(area) / 2;
   };
-  
+
   const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
     if (!showGrid) return;
     ctx.save();
@@ -113,18 +110,18 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     ctx.stroke();
     ctx.restore();
   };
-  
+
   const drawWalls = (ctx: CanvasRenderingContext2D) => {
     ctx.save();
     walls.forEach(wall => {
       ctx.beginPath();
       ctx.moveTo(wall.start.x, wall.start.y);
       ctx.lineTo(wall.end.x, wall.end.y);
-      ctx.strokeStyle = selectedWall === wall.id ? '#3b82f6' : '#374151';
+      ctx.strokeStyle = selectedWallId === wall.id ? '#3b82f6' : '#374151';
       ctx.lineWidth = wall.thickness || 5;
       ctx.lineCap = 'round';
       ctx.stroke();
-      ctx.fillStyle = selectedWall === wall.id ? '#3b82f6' : '#6b7280';
+      ctx.fillStyle = selectedWallId === wall.id ? '#3b82f6' : '#6b7280';
       ctx.beginPath();
       ctx.arc(wall.start.x, wall.start.y, 4, 0, Math.PI * 2);
       ctx.arc(wall.end.x, wall.end.y, 4, 0, Math.PI * 2);
@@ -142,7 +139,7 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     }
     ctx.restore();
   };
-  
+
   const drawRooms = (ctx: CanvasRenderingContext2D) => {
     ctx.save();
     rooms.forEach(room => {
@@ -155,8 +152,8 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
       ctx.closePath();
       ctx.fillStyle = room.color || 'rgba(59, 130, 246, 0.1)';
       ctx.fill();
-      ctx.strokeStyle = selectedRoom === room.id ? '#3b82f6' : '#6b7280';
-      ctx.lineWidth = selectedRoom === room.id ? 3 : 2;
+      ctx.strokeStyle = selectedRoomId === room.id ? '#3b82f6' : '#6b7280';
+      ctx.lineWidth = selectedRoomId === room.id ? 3 : 2;
       ctx.stroke();
       const centroid = room.points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
       centroid.x /= room.points.length;
@@ -191,17 +188,19 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     }
     ctx.restore();
   };
-  
+
   const drawFurniture = (ctx: CanvasRenderingContext2D) => {
     ctx.save();
     furniture.forEach(item => {
+      const x = item.position?.x ?? item.x ?? 0;
+      const y = item.position?.y ?? item.y ?? 0;
       ctx.save();
-      ctx.translate(item.x, item.y);
+      ctx.translate(x, y);
       ctx.rotate(item.rotation);
-      ctx.scale(item.scale, item.scale);
+      ctx.scale(item.scale || 1, item.scale || 1);
       ctx.fillStyle = item.color || '#f3f4f6';
-      ctx.strokeStyle = selectedFurniture === item.id ? '#3b82f6' : '#6b7280';
-      ctx.lineWidth = selectedFurniture === item.id ? 3 : 2;
+      ctx.strokeStyle = selectedFurnitureId === item.id ? '#3b82f6' : '#6b7280';
+      ctx.lineWidth = selectedFurnitureId === item.id ? 3 : 2;
       ctx.fillRect(-item.width / 2, -item.height / 2, item.width, item.height);
       ctx.strokeRect(-item.width / 2, -item.height / 2, item.width, item.height);
       ctx.fillStyle = '#374151';
@@ -212,7 +211,7 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     });
     ctx.restore();
   };
-  
+
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -227,12 +226,12 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     drawWalls(ctx);
     drawFurniture(ctx);
     ctx.restore();
-  }, [offset, scale, rooms, walls, furniture, showGrid, gridSize, selectedRoom, selectedWall, selectedFurniture, tempWall, currentPoints, mousePos]);
-  
+  }, [offset, scale, rooms, walls, furniture, showGrid, gridSize, selectedRoomId, selectedWallId, selectedFurnitureId, tempWall, currentPoints, mousePos]);
+
   useEffect(() => {
     render();
   }, [render]);
-  
+
   useEffect(() => {
     const handleResize = () => {
       const container = containerRef.current;
@@ -247,7 +246,7 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [render]);
-  
+
   const handleMouseDown = (e: React.MouseEvent) => {
     const point = screenToCanvas(e.clientX, e.clientY);
     const snappedPoint = snapPoint(point);
@@ -277,6 +276,7 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
         addFurniture({
           id: Date.now().toString(),
           type: 'Sofa',
+          position: { x: snappedPoint.x, y: snappedPoint.y },
           x: snappedPoint.x,
           y: snappedPoint.y,
           rotation: 0,
@@ -284,11 +284,10 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
           width: 60,
           height: 30
         });
-        toast.success('Móvel adicionado!');
         break;
     }
   };
-  
+
   const handleMouseMove = (e: React.MouseEvent) => {
     const point = screenToCanvas(e.clientX, e.clientY);
     const snappedPoint = snapPoint(point);
@@ -307,7 +306,7 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
       });
     }
   };
-  
+
   const handleMouseUp = (e: React.MouseEvent) => {
     if (isPanning) {
       setIsPanning(false);
@@ -326,14 +325,13 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
           end: snappedPoint,
           thickness: 5
         });
-        toast.success('Parede adicionada!');
       }
       setIsDrawing(false);
       setDrawStart(null);
       setTempWall(null);
     }
   };
-  
+
   const handleDoubleClick = () => {
     if (activeTool === 'room' && currentPoints.length >= 3) {
       const area = calculateArea(currentPoints);
@@ -345,11 +343,10 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
         color: 'rgba(59, 130, 246, 0.1)',
         height: 2.8
       });
-      toast.success(`Cômodo criado! Área: ${area.toFixed(1)}m²`);
       setCurrentPoints([]);
     }
   };
-  
+
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
@@ -362,7 +359,7 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     setScale(newScale);
     setOffset(newOffset);
   };
-  
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && activeTool === 'room' && currentPoints.length >= 3) {
@@ -375,26 +372,26 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
           color: 'rgba(59, 130, 246, 0.1)',
           height: 2.8
         });
-        toast.success(`Cômodo criado! Área: ${area.toFixed(1)}m²`);
         setCurrentPoints([]);
       }
       if (e.key === 'Escape') {
         setCurrentPoints([]);
         setTempWall(null);
         setIsDrawing(false);
+        clearSelection();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTool, currentPoints, rooms.length]);
-  
+  }, [activeTool, currentPoints, rooms.length, addRoom, clearSelection]);
+
   const zoomIn = () => setScale(Math.min(5, scale * 1.2));
   const zoomOut = () => setScale(Math.max(0.1, scale / 1.2));
   const resetView = () => {
     setScale(1);
     setOffset({ x: 0, y: 0 });
   };
-  
+
   const exportData = () => {
     const data = {
       rooms,
@@ -409,14 +406,13 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     a.download = `casapro-project-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success('Projeto exportado!');
   };
-  
+
   return (
-    <div ref={containerRef} className={cn("relative w-full h-full overflow-hidden bg-white", className)}>
+    <div ref={containerRef} className={`relative w-full h-full overflow-hidden bg-gray-50 ${className || ''}`}>
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 cursor-crosshair"
+        className="block w-full h-full cursor-crosshair"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -425,129 +421,61 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
         onWheel={handleWheel}
       />
       
-      <div className="absolute left-4 top-4 flex flex-col gap-2 bg-white/90 backdrop-blur-sm p-2 rounded-lg shadow-lg border">
-        <Button
-          variant={activeTool === 'select' ? 'default' : 'ghost'}
-          size="icon"
-          onClick={() => setActiveTool('select')}
-          title="Selecionar (V)"
+      {/* Controles de Zoom */}
+      <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+        <button
+          onClick={zoomIn}
+          className="w-10 h-10 bg-white rounded-lg shadow-md flex items-center justify-center hover:bg-gray-100 transition-colors"
         >
-          <MousePointer2 className="w-4 h-4" />
-        </Button>
-        
-        <Button
-          variant={activeTool === 'wall' ? 'default' : 'ghost'}
-          size="icon"
-          onClick={() => setActiveTool('wall')}
-          title="Parede (W)"
+          +
+        </button>
+        <button
+          onClick={zoomOut}
+          className="w-10 h-10 bg-white rounded-lg shadow-md flex items-center justify-center hover:bg-gray-100 transition-colors"
         >
-          <div className="w-4 h-0.5 bg-current" />
-        </Button>
-        
-        <Button
-          variant={activeTool === 'room' ? 'default' : 'ghost'}
-          size="icon"
-          onClick={() => setActiveTool('room')}
-          title="Cômodo (R)"
+          -
+        </button>
+        <button
+          onClick={resetView}
+          className="w-10 h-10 bg-white rounded-lg shadow-md flex items-center justify-center hover:bg-gray-100 transition-colors text-xs"
         >
-          <Maximize className="w-4 h-4" />
-        </Button>
-        
-        <Button
-          variant={activeTool === 'furniture' ? 'default' : 'ghost'}
-          size="icon"
-          onClick={() => setActiveTool('furniture')}
-          title="Móvel (F)"
-        >
-          <Move className="w-4 h-4" />
-        </Button>
-        
-        <div className="w-full h-px bg-gray-200 my-1" />
-        
-        <Button
-          variant={activeTool === 'measure' ? 'default' : 'ghost'}
-          size="icon"
-          onClick={() => setActiveTool('measure')}
-          title="Medir (M)"
-        >
-          <Ruler className="w-4 h-4" />
-        </Button>
-        
-        <Button
-          variant={activeTool === 'text' ? 'default' : 'ghost'}
-          size="icon"
-          onClick={() => setActiveTool('text')}
-          title="Texto (T)"
-        >
-          <Type className="w-4 h-4" />
-        </Button>
-        
-        <Button
-          variant={activeTool === 'eraser' ? 'default' : 'ghost'}
-          size="icon"
-          onClick={() => setActiveTool('eraser')}
-          title="Borracha (E)"
-        >
-          <Eraser className="w-4 h-4" />
-        </Button>
+          ⌂
+        </button>
       </div>
-      
-      <div className="absolute right-4 bottom-4 flex flex-col gap-2 bg-white/90 backdrop-blur-sm p-2 rounded-lg shadow-lg border">
-        <Button variant="ghost" size="icon" onClick={zoomIn} title="Zoom In">
-          <ZoomIn className="w-4 h-4" />
-        </Button>
-        
-        <div className="text-center text-xs text-gray-500 py-1">
-          {Math.round(scale * 100)}%
-        </div>
-        
-        <Button variant="ghost" size="icon" onClick={zoomOut} title="Zoom Out">
-          <ZoomOut className="w-4 h-4" />
-        </Button>
-        
-        <Button variant="ghost" size="icon" onClick={resetView} title="Reset View">
-          <RotateCcw className="w-4 h-4" />
-        </Button>
+
+      {/* Info de Zoom */}
+      <div className="absolute bottom-4 left-4 bg-white/90 px-3 py-2 rounded-lg shadow-md text-sm text-gray-700">
+        {Math.round(scale * 100)}%
       </div>
-      
-      <div className="absolute bottom-4 left-4 flex items-center gap-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg border text-sm">
-        <div className="flex items-center gap-2">
-          <Grid3X3 className="w-4 h-4 text-gray-500" />
-          <span>Grid: {gridSize}cm</span>
-        </div>
-        
-        <div className="w-px h-4 bg-gray-300" />
-        
-        <div className="flex items-center gap-2">
-          <Move className="w-4 h-4 text-gray-500" />
-          <span>X: {mousePos.x.toFixed(0)} Y: {mousePos.y.toFixed(0)}</span>
-        </div>
-        
-        {activeTool === 'room' && currentPoints.length > 0 && (
-          <>
-            <div className="w-px h-4 bg-gray-300" />
-            <div className="flex items-center gap-2 text-blue-600">
-              <Calculator className="w-4 h-4" />
-              <span>{currentPoints.length} pontos</span>
-            </div>
-          </>
-        )}
+
+      {/* Grid Info */}
+      <div className="absolute top-4 left-4 bg-white/90 px-3 py-2 rounded-lg shadow-md text-sm text-gray-700">
+        Grid: {gridSize}cm
       </div>
-      
-      <div className="absolute top-4 right-4 flex items-center gap-2 bg-white/90 backdrop-blur-sm p-2 rounded-lg shadow-lg border">
-        <Button variant="ghost" size="sm" onClick={exportData}>
-          <Download className="w-4 h-4 mr-2" />
-          Exportar
-        </Button>
-        
-        <Button variant="default" size="sm">
-          <Save className="w-4 h-4 mr-2" />
-          Salvar
-        </Button>
+
+      {/* Coordenadas do Mouse */}
+      <div className="absolute top-4 right-4 bg-white/90 px-3 py-2 rounded-lg shadow-md text-sm text-gray-700 font-mono">
+        X: {mousePos.x.toFixed(0)} Y: {mousePos.y.toFixed(0)}
       </div>
-      
+
+      {/* Contador de Pontos (modo room) */}
       {activeTool === 'room' && currentPoints.length > 0 && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg">
+          {currentPoints.length} pontos
+        </div>
+      )}
+
+      {/* Botão Export */}
+      <button
+        onClick={exportData}
+        className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-md transition-colors text-sm font-medium"
+      >
+        Exportar Projeto
+      </button>
+
+      {/* Hint para finalizar cômodo */}
+      {activeTool === 'room' && currentPoints.length > 0 && (
+        <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
           Pressione Enter para finalizar ou Escape para cancelar
         </div>
       )}
