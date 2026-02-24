@@ -1,10 +1,40 @@
-// src/App.tsx (atualizado)
-import { useState } from 'react';
+// src/App.tsx (VERSÃO FINAL COM SYNC 2D/3D)
+import { useState, useEffect } from 'react';
 import { Canvas2D } from './components/canvas/Canvas2D';
 import { Canvas3D } from './components/canvas3d/Canvas3D';
+import { useProjectStore } from './store/projectStore';
 
 function App() {
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Garantir hidratação do store antes de renderizar
+  useEffect(() => {
+    const unsubscribe = useProjectStore.persist.onFinishHydration(() => {
+      setIsLoading(false);
+    });
+    
+    if (useProjectStore.persist.hasHydrated()) {
+      setIsLoading(false);
+    }
+    
+    return () => unsubscribe();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div style={{ 
+        width: '100vw', 
+        height: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: '#f5f5f5'
+      }}>
+        <div>Carregando CasaPro...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
@@ -32,7 +62,7 @@ function App() {
             fontWeight: viewMode === '2d' ? 'bold' : 'normal'
           }}
         >
-          2D Planta
+          📐 2D Planta
         </button>
         <button
           onClick={() => setViewMode('3d')}
@@ -46,7 +76,7 @@ function App() {
             fontWeight: viewMode === '3d' ? 'bold' : 'normal'
           }}
         >
-          3D Vista
+          🏠 3D Vista
         </button>
       </div>
       
