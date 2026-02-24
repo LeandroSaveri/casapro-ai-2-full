@@ -1,4 +1,4 @@
-// src/App.tsx (VERSÃO FINAL COM SYNC 2D/3D)
+// src/App.tsx (VERSÃO DEFINITIVA)
 import { useState, useEffect } from 'react';
 import { Canvas2D } from './components/canvas/Canvas2D';
 import { Canvas3D } from './components/canvas3d/Canvas3D';
@@ -8,12 +8,13 @@ function App() {
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [isLoading, setIsLoading] = useState(true);
   
-  // Garantir hidratação do store antes de renderizar
   useEffect(() => {
+    // Aguardar hidratação do Zustand
     const unsubscribe = useProjectStore.persist.onFinishHydration(() => {
       setIsLoading(false);
     });
     
+    // Se já hidratou
     if (useProjectStore.persist.hasHydrated()) {
       setIsLoading(false);
     }
@@ -27,17 +28,21 @@ function App() {
         width: '100vw', 
         height: '100vh', 
         display: 'flex', 
+        flexDirection: 'column',
         alignItems: 'center', 
         justifyContent: 'center',
-        background: '#f5f5f5'
+        background: '#f5f5f5',
+        gap: 16
       }}>
-        <div>Carregando CasaPro...</div>
+        <div style={{ fontSize: 24, fontWeight: 'bold' }}>CasaPro</div>
+        <div>Carregando seu projeto...</div>
       </div>
     );
   }
 
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      {/* Toggle 2D/3D */}
       <div style={{
         position: 'absolute',
         top: 16,
@@ -59,10 +64,13 @@ function App() {
             background: viewMode === '2d' ? '#1976d2' : '#f5f5f5',
             color: viewMode === '2d' ? 'white' : '#333',
             cursor: 'pointer',
-            fontWeight: viewMode === '2d' ? 'bold' : 'normal'
+            fontWeight: viewMode === '2d' ? 'bold' : 'normal',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6
           }}
         >
-          📐 2D Planta
+          <span>📐</span> 2D Planta
         </button>
         <button
           onClick={() => setViewMode('3d')}
@@ -73,10 +81,13 @@ function App() {
             background: viewMode === '3d' ? '#1976d2' : '#f5f5f5',
             color: viewMode === '3d' ? 'white' : '#333',
             cursor: 'pointer',
-            fontWeight: viewMode === '3d' ? 'bold' : 'normal'
+            fontWeight: viewMode === '3d' ? 'bold' : 'normal',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6
           }}
         >
-          🏠 3D Vista
+          <span>🏠</span> 3D Vista
         </button>
       </div>
       
