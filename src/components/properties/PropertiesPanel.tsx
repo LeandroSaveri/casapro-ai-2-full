@@ -1,5 +1,4 @@
 import { useProjectStore } from '@/store/projectStore';
-import { useUIStore } from '@/store/uiStore';
 import { useMemo } from 'react';
 import type { Wall, Room, Door, Window, Furniture } from '@/types/canvas';
 
