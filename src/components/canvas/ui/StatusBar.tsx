@@ -1,44 +1,42 @@
-// src/components/canvas/ui/StatusBar.tsx
 import { useUIStore } from '@/store/uiStore';
+import { useProjectStore } from '@/store/projectStore';
 
 export function StatusBar() {
-  const { activeTool, snapEnabled, setSnapEnabled } = useUIStore();
+  const { activeTool, snapToGrid, setSnapToGrid, gridSize } = useUIStore();
+  const { walls, rooms, furniture } = useProjectStore();
 
   const toolNames: Record<string, string> = {
     select: 'Selecionar',
     wall: 'Desenhar Parede',
-    room: 'Criar Cômodo',
+    room: 'Desenhar Cômodo',
     door: 'Inserir Porta',
     window: 'Inserir Janela',
-    furniture: 'Inserir Móvel'
+    furniture: 'Inserir Móvel',
   };
 
   return (
-    <div style={{
-      position: 'absolute',
-      bottom: '0',
-      left: '0',
-      right: '0',
-      height: '32px',
-      background: '#f5f5f5',
-      borderTop: '1px solid #e0e0e0',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0 16px',
-      fontSize: '13px',
-      color: '#666',
-      zIndex: 100
-    }}>
-      <span>{toolNames[activeTool] || 'Pronto'}</span>
-      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={snapEnabled}
-          onChange={(e) => setSnapEnabled(e.target.checked)}
-        />
-        Snap
-      </label>
+    <div className="h-8 bg-gray-100 border-t border-gray-300 flex items-center px-4 justify-between text-sm text-gray-600">
+      <div className="flex items-center gap-4">
+        <span className="font-medium text-gray-800">
+          {toolNames[activeTool] || activeTool}
+        </span>
+        <span className="text-gray-400">|</span>
+        <span>
+          Paredes: {walls.length} | Cômodos: {rooms.length} | Móveis: {furniture.length}
+        </span>
+      </div>
+      
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={snapToGrid}
+            onChange={(e) => setSnapToGrid(e.target.checked)}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span>Snap to Grid ({gridSize}cm)</span>
+        </label>
+      </div>
     </div>
   );
 }
