@@ -1,4 +1,3 @@
-// src/components/billing/PlanBadge.tsx
 import { useCloudStore } from '@/store/cloudStore';
 
 const plans = {
@@ -11,22 +10,15 @@ export function PlanBadge() {
   const { user } = useCloudStore();
   if (!user) return null;
 
-  const plan = plans[user.plan as keyof typeof plans] || plans.free;
+  // @ts-ignore - plan pode não existir no tipo ainda
+  const planKey = (user.plan as keyof typeof plans) || 'free';
+  const plan = plans[planKey];
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: 16,
-      right: 700,
-      zIndex: 1000,
-      padding: '6px 12px',
-      background: plan.color,
-      color: 'white',
-      borderRadius: 16,
-      fontSize: 12,
-      fontWeight: 'bold',
-      textTransform: 'uppercase'
-    }}>
+    <div 
+      className="px-3 py-1 rounded-full text-xs font-medium text-white"
+      style={{ backgroundColor: plan.color }}
+    >
       {plan.name}
     </div>
   );
