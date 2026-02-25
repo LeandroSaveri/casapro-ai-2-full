@@ -1,126 +1,78 @@
-// src/components/canvas/ui/FurniturePanel.tsx
 import { useUIStore } from '@/store/uiStore';
 import { furnitureCatalog, getFurnitureByCategory } from '@/data/furnitureData';
-import type { FurnitureCategory } from '@/types/canvas';
+import type { FurnitureTemplate } from '@/types/canvas';
 
-const categories: { id: FurnitureCategory; name: string; icon: string }[] = [
+const categories = [
   { id: 'living', name: 'Sala', icon: '🛋️' },
   { id: 'bedroom', name: 'Quarto', icon: '🛏️' },
   { id: 'kitchen', name: 'Cozinha', icon: '🍳' },
-  { id: 'bathroom', name: 'Banheiro', icon: '🚿' }
+  { id: 'bathroom', name: 'Banheiro', icon: '🚿' },
 ];
 
 export function FurniturePanel() {
   const { 
     furniturePanelOpen, 
     setFurniturePanelOpen, 
-    selectedFurnitureCategory, 
-    setSelectedFurnitureCategory,
+    selectedFurnitureTemplate, 
     setSelectedFurnitureTemplate,
-    setActiveTool
+    setActiveTool 
   } = useUIStore();
 
   if (!furniturePanelOpen) return null;
 
-  const items = selectedFurnitureCategory 
-    ? getFurnitureByCategory(selectedFurnitureCategory)
-    : [];
-
-  const handleSelectFurniture = (templateId: string) => {
-    setSelectedFurnitureTemplate(templateId);
-    setActiveTool('furniture');
+  const handleSelectTemplate = (template: FurnitureTemplate) => {
+    setSelectedFurnitureTemplate(template.id);
     setFurniturePanelOpen(false);
+    setActiveTool('furniture');
   };
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: '16px',
-      right: '16px',
-      width: '280px',
-      background: 'white',
-      borderRadius: '8px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-      zIndex: 100,
-      overflow: 'hidden'
-    }}>
-      <div style={{
-        padding: '12px 16px',
-        borderBottom: '1px solid #e0e0e0',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <h3 style={{ margin: 0, fontSize: '16px' }}>Catálogo de Móveis</h3>
+    <div className="absolute right-4 top-20 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-[80vh] overflow-hidden flex flex-col">
+      <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 className="font-semibold text-gray-800">Catálogo de Móveis</h3>
         <button
           onClick={() => setFurniturePanelOpen(false)}
-          style={{
-            border: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
-            fontSize: '18px'
-          }}
+          className="text-gray-500 hover:text-gray-700"
         >
-          ×
+          ✕
         </button>
       </div>
-
-      <div style={{ display: 'flex', borderBottom: '1px solid #e0e0e0' }}>
-        {categories.map(cat => (
-          <button
-            key={cat.id}
-            onClick={() => setSelectedFurnitureCategory(cat.id)}
-            style={{
-              flex: 1,
-              padding: '12px',
-              border: 'none',
-              background: selectedFurnitureCategory === cat.id ? '#e3f2fd' : 'transparent',
-              cursor: 'pointer',
-              fontSize: '12px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-          >
-            <span style={{ fontSize: '20px' }}>{cat.icon}</span>
-            {cat.name}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ maxHeight: '400px', overflowY: 'auto', padding: '8px' }}>
-        {selectedFurnitureCategory ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-            {items.map(item => (
-              <button
-                key={item.id}
-                onClick={() => handleSelectFurniture(item.id)}
-                style={{
-                  padding: '12px',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '6px',
-                  background: 'white',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}
-              >
-                <span style={{ fontSize: '32px' }}>{item.icon}</span>
-                <span style={{ fontSize: '12px', textAlign: 'center' }}>{item.name}</span>
-                <span style={{ fontSize: '10px', color: '#999' }}>
-                  {item.width}×{item.height}cm
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div style={{ padding: '32px', textAlign: 'center', color: '#999' }}>
-            Selecione uma categoria
-          </div>
-        )}
+      
+      <div className="overflow-y-auto flex-1 p-4">
+        {categories.map(category => {
+          const items = getFurnitureByCategory(category.id);
+          if (items.length === 0) return null;
+          
+          return (
+            <div key={category.id} className="mb-6">
+              <h4 className="text-sm font-medium text-gray-600 mb-3 flex items-center gap-2">
+                <span>{category.icon}</span>
+                {category.name}
+              </h4>
+              <div className="grid grid-cols-2 gap-2">
+                {items.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => handleSelectTemplate(item)}
+                    className={`p-3 rounded-lg border text-left transition-all ${
+                      selectedFurnitureTemplate === item.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="text-2xl mb-1">{item.icon}</div>
+                    <div className="text-xs font-medium text-gray-800 truncate">
+                      {item.name}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {item.width}×{item.height}cm
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
