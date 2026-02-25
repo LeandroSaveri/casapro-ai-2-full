@@ -1,4 +1,3 @@
-// src/components/canvas/ui/ContextMenu.tsx
 import { useProjectStore } from '@/store/projectStore';
 
 interface ContextMenuProps {
@@ -12,7 +11,7 @@ export function ContextMenu({ x, y, onClose }: ContextMenuProps) {
 
   const handleDelete = () => {
     if (!selection) return;
-    
+
     switch (selection.type) {
       case 'wall':
         removeWall(selection.id);
@@ -38,33 +37,22 @@ export function ContextMenu({ x, y, onClose }: ContextMenuProps) {
 
   return (
     <div
-      style={{
-        position: 'absolute',
-        left: x,
-        top: y,
-        background: 'white',
-        borderRadius: '6px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-        padding: '4px 0',
-        minWidth: '120px',
-        zIndex: 200
-      }}
+      className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50 min-w-[150px]"
+      style={{ left: x, top: y }}
     >
       <button
         onClick={handleDelete}
-        style={{
-          width: '100%',
-          padding: '8px 16px',
-          border: 'none',
-          background: 'transparent',
-          textAlign: 'left',
-          cursor: 'pointer',
-          color: '#d32f2f'
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f5f5')}
-        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+        className="w-full px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
       >
-        🗑️ Excluir
+        <span>🗑️</span>
+        Excluir
+      </button>
+      <div className="border-t border-gray-200 my-1"></div>
+      <button
+        onClick={onClose}
+        className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors"
+      >
+        Cancelar
       </button>
     </div>
   );
