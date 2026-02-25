@@ -1,4 +1,3 @@
-// src/components/canvas/ui/Toolbar.tsx
 import { useUIStore } from '@/store/uiStore';
 import { useProjectStore } from '@/store/projectStore';
 import type { ToolType } from '@/types/canvas';
@@ -25,38 +24,17 @@ export function Toolbar() {
   };
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: '16px',
-      left: '16px',
-      background: 'white',
-      borderRadius: '8px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-      padding: '8px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '4px',
-      zIndex: 100
-    }}>
+    <div className="flex flex-col gap-1 p-2 bg-white rounded-lg shadow-md">
       {tools.map(tool => (
         <button
           key={tool.id}
           onClick={() => handleToolClick(tool.id)}
+          className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg transition-colors ${
+            activeTool === tool.id
+              ? 'bg-blue-500 text-white'
+              : 'hover:bg-gray-100 text-gray-700'
+          }`}
           title={tool.name}
-          style={{
-            width: '40px',
-            height: '40px',
-            border: 'none',
-            borderRadius: '6px',
-            background: activeTool === tool.id ? '#1976d2' : 'transparent',
-            color: activeTool === tool.id ? 'white' : '#333',
-            cursor: 'pointer',
-            fontSize: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'all 0.2s'
-          }}
         >
           {tool.icon}
         </button>
