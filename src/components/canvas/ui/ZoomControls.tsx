@@ -1,67 +1,47 @@
-// src/components/canvas/ui/ZoomControls.tsx
-import { useUIStore } from '@/store/uiStore';
+import { useState } from 'react';
 
-export function ZoomControls() {
-  const { zoomIn, zoomOut, resetView, zoom } = useUIStore();
+interface ZoomControlsProps {
+  scale: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
+}
+
+export function ZoomControls({ scale, onZoomIn, onZoomOut, onReset }: ZoomControlsProps) {
+  const [showReset, setShowReset] = useState(false);
 
   return (
-    <div style={{
-      position: 'absolute',
-      bottom: '16px',
-      right: '16px',
-      background: 'white',
-      borderRadius: '8px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-      padding: '8px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '4px',
-      zIndex: 100
-    }}>
+    <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <button
+          onClick={onZoomIn}
+          className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition-colors border-b border-gray-200"
+          title="Zoom In"
+        >
+          <span className="text-lg font-bold">+</span>
+        </button>
+        <button
+          onClick={onZoomOut}
+          className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition-colors"
+          title="Zoom Out"
+        >
+          <span className="text-lg font-bold">−</span>
+        </button>
+      </div>
+      
       <button
-        onClick={zoomIn}
-        style={{
-          width: '36px',
-          height: '36px',
-          border: 'none',
-          borderRadius: '6px',
-          background: '#f5f5f5',
-          cursor: 'pointer',
-          fontSize: '18px',
-          fontWeight: 'bold'
-        }}
+        onClick={onReset}
+        onMouseEnter={() => setShowReset(true)}
+        onMouseLeave={() => setShowReset(false)}
+        className="w-10 h-10 bg-white rounded-lg shadow-md flex items-center justify-center hover:bg-gray-100 transition-colors text-sm font-medium"
+        title="Reset View"
       >
-        +
+        ⌂
       </button>
-      <button
-        onClick={resetView}
-        style={{
-          width: '36px',
-          height: '36px',
-          border: 'none',
-          borderRadius: '6px',
-          background: '#f5f5f5',
-          cursor: 'pointer',
-          fontSize: '12px'
-        }}
-      >
-        {Math.round(zoom * 100)}%
-      </button>
-      <button
-        onClick={zoomOut}
-        style={{
-          width: '36px',
-          height: '36px',
-          border: 'none',
-          borderRadius: '6px',
-          background: '#f5f5f5',
-          cursor: 'pointer',
-          fontSize: '18px',
-          fontWeight: 'bold'
-        }}
-      >
-        −
-      </button>
+      
+      <div className="bg-white/90 px-2 py-1 rounded shadow text-xs font-mono text-center">
+        {Math.round(scale * 100)}%
+      </div>
     </div>
   );
 }
