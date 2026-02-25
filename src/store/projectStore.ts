@@ -1,4 +1,3 @@
-// src/store/projectStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Wall, Room, Door, Window, Furniture, Selection } from '@/types/canvas';
@@ -12,33 +11,33 @@ interface ProjectState {
   windows: Window[];
   furniture: Furniture[];
   selection: Selection | null;
-  
+
   addWall: (wall: Omit<Wall, 'id'>) => string;
   updateWall: (id: string, updates: Partial<Wall>) => void;
   removeWall: (id: string) => void;
-  
+
   addRoom: (room: Omit<Room, 'id'>) => string;
   updateRoom: (id: string, updates: Partial<Room>) => void;
   removeRoom: (id: string) => void;
-  
+
   addDoor: (door: Omit<Door, 'id'>) => string;
   updateDoor: (id: string, updates: Partial<Door>) => void;
   removeDoor: (id: string) => void;
-  
+
   addWindow: (window: Omit<Window, 'id'>) => string;
   updateWindow: (id: string, updates: Partial<Window>) => void;
   removeWindow: (id: string) => void;
-  
+
   addFurniture: (furniture: Omit<Furniture, 'id'>) => string;
   updateFurniture: (id: string, updates: Partial<Furniture>) => void;
   removeFurniture: (id: string) => void;
-  
+
   setSelection: (selection: Selection | null) => void;
   clearSelection: () => void;
-  
+
   getWallEndpoints: () => Point[];
   getWallLines: () => { start: Point; end: Point; id: string }[];
-  
+
   reset: () => void;
 }
 
@@ -71,7 +70,7 @@ export const useProjectStore = create<ProjectState>()(
       removeWall: (id) => {
         set(state => ({
           walls: state.walls.filter(w => w.id !== id),
-          rooms: state.rooms.filter(r => !r.walls.includes(id)),
+          rooms: state.rooms.filter(r => !r.walls?.includes(id)),
           selection: state.selection?.type === 'wall' && state.selection.id === id ? null : state.selection
         }));
       },
