@@ -1,109 +1,69 @@
-// src/components/export/ExportPanel.tsx
-import { useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
-import { exportToJSON, downloadJSON, exportCanvasToImage, downloadImage } from './exportJSON';
+import { useState } from 'react';
 
 export function ExportPanel() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [projectName, setProjectName] = useState('Meu Projeto');
   const { walls, rooms, doors, windows, furniture } = useProjectStore();
+  const [format, setFormat] = useState<'json' | 'svg' | 'pdf'>('json');
 
-  const handleExportJSON = () => {
-    const json = exportToJSON(walls, rooms, doors, windows, furniture, projectName);
-    downloadJSON(json, projectName.replace(/\s+/g, '_'));
+  const handleExport = () => {
+    const data = {
+      version: '1.0',
+      timestamp: new Date().toISOString(),
+      project: {
+        walls,
+        rooms,
+        doors,
+        windows,
+        furniture
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `casapro-export-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
-
-  const handleExportImage = async () => {
-    const canvas = document.querySelector('canvas');
-    if (!canvas) return;
-    
-    const dataUrl = await exportCanvasToImage(canvas as HTMLCanvasElement);
-    downloadImage(dataUrl, `${projectName.replace(/\s+/g, '_')}.png`);
-  };
-
-  if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        style={{
-          position: 'absolute',
-          top: 16,
-          right: 520,
-          zIndex: 1000,
-          padding: '8px 16px',
-          background: '#4caf50',
-          color: 'white',
-          border: 'none',
-          borderRadius: 6,
-          cursor: 'pointer',
-          fontWeight: 500
-        }}
-      >
-        📤 Exportar
-      </button>
-    );
-  }
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: 16,
-      right: 520,
-      zIndex: 1000,
-      background: 'white',
-      borderRadius: 8,
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-      padding: 16,
-      width: 280
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>Exportar Projeto</h3>
-        <button onClick={() => setIsOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18 }}>×</button>
+    <div className="absolute right-4 top-20 w-80 bg-white rounded-lg shadow-xl border border-gray-200 p-4">
+      <h3 className="font-semibold text-gray-800 mb-4">Exportar Projeto</h3>
+      
+      <div className="space-y-3 mb-4">
+        <label className="block text-sm font-medium text-gray-700">Formato</label>
+        <div className="flex gap-2">
+          {(['json', 'svg', 'pdf'] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFormat(f)}
+              className={`px-3 py-1 rounded text-sm capitalize ${
+                format === f 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <input
-        type="text"
-        value={projectName}
-        onChange={(e) => setProjectName(e.target.value)}
-        placeholder="Nome do projeto"
-        style={{
-          width: '100%',
-          padding: 8,
-          marginBottom: 12,
-          border: '1px solid #ddd',
-          borderRadius: 4
-        }}
-      />
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button
-          onClick={handleExportJSON}
-          style={{
-            padding: '10px',
-            background: '#2196f3',
-            color: 'white',
-            border: 'none',
-            borderRadius: 4,
-            cursor: 'pointer'
-          }}
-        >
-          💾 Salvar como JSON
-        </button>
-        
-        <button
-          onClick={handleExportImage}
-          style={{
-            padding: '10px',
-            background: '#ff9800',
-            color: 'white',
-            border: 'none',
-            borderRadius: 4,
-            cursor: 'pointer'
-          }}
-        >
-          🖼️ Exportar como Imagem
-        </button>
+      <div className="text-sm text-gray-600 mb-4">
+        <p>Paredes: {walls.length}</p>
+        <p>Cômodos: {rooms.length}</p>
+        <p>Portas: {doors.length}</p>
+        <p>Janelas: {windows.length}</p>
+        <p>Móveis: {furniture.length}</p>
       </div>
+
+      <button
+        onClick={handleExport}
+        className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg transition-colors"
+      >
+        Exportar como {format.toUpperCase()}
+      </button>
     </div>
   );
 }
