@@ -46,11 +46,11 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
   const [tempWall, setTempWall] = useState<Wall | null>(null);
   const [mousePos, setMousePos] = useState<Point>({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState<Point>({ x: 0, y: 0 });
-
-  // Estados derivados de seleção
-  const selectedRoomId = selection?.type === 'room' ? selection.id : null;
-  const selectedWallId = selection?.type === 'wall' ? selection.id : null;
-  const selectedFurnitureId = selection?.type === 'furniture' ? selection.id : null;
+  
+  // Refs para touch events
+  const lastTouchDistance = useRef<number>(0);
+  const isTouchPanning = useRef<boolean>(false);
+  const lastTouchPos = useRef<Point>({ x: 0, y: 0 });
 
   const screenToCanvas = useCallback((screenX: number, screenY: number): Point => {
     const canvas = canvasRef.current;
@@ -117,11 +117,11 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
       ctx.beginPath();
       ctx.moveTo(wall.start.x, wall.start.y);
       ctx.lineTo(wall.end.x, wall.end.y);
-      ctx.strokeStyle = selectedWallId === wall.id ? '#3b82f6' : '#374151';
+      ctx.strokeStyle = selection?.type === 'wall' && selection.id === wall.id ? '#3b82f6' : '#374151';
       ctx.lineWidth = wall.thickness || 5;
       ctx.lineCap = 'round';
       ctx.stroke();
-      ctx.fillStyle = selectedWallId === wall.id ? '#3b82f6' : '#6b7280';
+      ctx.fillStyle = selection?.type === 'wall' && selection.id === wall.id ? '#3b82f6' : '#6b7280';
       ctx.beginPath();
       ctx.arc(wall.start.x, wall.start.y, 4, 0, Math.PI * 2);
       ctx.arc(wall.end.x, wall.end.y, 4, 0, Math.PI * 2);
@@ -152,8 +152,8 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
       ctx.closePath();
       ctx.fillStyle = room.color || 'rgba(59, 130, 246, 0.1)';
       ctx.fill();
-      ctx.strokeStyle = selectedRoomId === room.id ? '#3b82f6' : '#6b7280';
-      ctx.lineWidth = selectedRoomId === room.id ? 3 : 2;
+      ctx.strokeStyle = selection?.type === 'room' && selection.id === room.id ? '#3b82f6' : '#6b7280';
+      ctx.lineWidth = selection?.type === 'room' && selection.id === room.id ? 3 : 2;
       ctx.stroke();
       const centroid = room.points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
       centroid.x /= room.points.length;
@@ -199,8 +199,8 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
       ctx.rotate(item.rotation);
       ctx.scale(item.scale || 1, item.scale || 1);
       ctx.fillStyle = item.color || '#f3f4f6';
-      ctx.strokeStyle = selectedFurnitureId === item.id ? '#3b82f6' : '#6b7280';
-      ctx.lineWidth = selectedFurnitureId === item.id ? 3 : 2;
+      ctx.strokeStyle = selection?.type === 'furniture' && selection.id === item.id ? '#3b82f6' : '#6b7280';
+      ctx.lineWidth = selection?.type === 'furniture' && selection.id === item.id ? 3 : 2;
       ctx.fillRect(-item.width / 2, -item.height / 2, item.width, item.height);
       ctx.strokeRect(-item.width / 2, -item.height / 2, item.width, item.height);
       ctx.fillStyle = '#374151';
@@ -226,7 +226,7 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     drawWalls(ctx);
     drawFurniture(ctx);
     ctx.restore();
-  }, [offset, scale, rooms, walls, furniture, showGrid, gridSize, selectedRoomId, selectedWallId, selectedFurnitureId, tempWall, currentPoints, mousePos]);
+  }, [offset, scale, rooms, walls, furniture, showGrid, gridSize, selection, tempWall, currentPoints, mousePos]);
 
   useEffect(() => {
     render();
@@ -247,6 +247,7 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, [render]);
 
+  // Handlers de Mouse (PC)
   const handleMouseDown = (e: React.MouseEvent) => {
     const point = screenToCanvas(e.clientX, e.clientY);
     const snappedPoint = snapPoint(point);
@@ -255,6 +256,128 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
       setDragStart({ x: e.clientX, y: e.clientY });
       return;
     }
+    handleStartDrawing(snappedPoint);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const point = screenToCanvas(e.clientX, e.clientY);
+    const snappedPoint = snapPoint(point);
+    setMousePos(snappedPoint);
+    if (isPanning) {
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      setOffset({ x: offset.x + dx, y: offset.y + dy });
+      setDragStart({ x: e.clientX, y: e.clientY });
+      return;
+    }
+    handleMoveDrawing(snappedPoint);
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (isPanning) {
+      setIsPanning(false);
+      return;
+    }
+    const point = screenToCanvas(e.clientX, e.clientY);
+    const snappedPoint = snapPoint(point);
+    handleEndDrawing(snappedPoint);
+  };
+
+  // Handlers de Touch (Mobile)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const point = screenToCanvas(touch.clientX, touch.clientY);
+    const snappedPoint = snapPoint(point);
+    
+    if (e.touches.length === 2) {
+      // Pinch zoom start
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastTouchDistance.current = Math.sqrt(dx * dx + dy * dy);
+      return;
+    }
+    
+    if (e.touches.length === 1) {
+      lastTouchPos.current = { x: touch.clientX, y: touch.clientY };
+      // Long press detection for pan
+      const timer = setTimeout(() => {
+        isTouchPanning.current = true;
+      }, 500);
+      
+      const handleTouchEndEarly = () => {
+        clearTimeout(timer);
+        document.removeEventListener('touchend', handleTouchEndEarly);
+      };
+      document.addEventListener('touchend', handleTouchEndEarly, { once: true });
+      
+      if (!isTouchPanning.current) {
+        handleStartDrawing(snappedPoint);
+      }
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    
+    if (e.touches.length === 2) {
+      // Pinch zoom
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (lastTouchDistance.current > 0) {
+        const scaleFactor = distance / lastTouchDistance.current;
+        const newScale = Math.max(0.1, Math.min(5, scale * scaleFactor));
+        const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const point = screenToCanvas(centerX, centerY);
+        const newOffset = {
+          x: centerX - point.x * newScale,
+          y: centerY - point.y * newScale
+        };
+        setScale(newScale);
+        setOffset(newOffset);
+      }
+      lastTouchDistance.current = distance;
+      return;
+    }
+    
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const point = screenToCanvas(touch.clientX, touch.clientY);
+      const snappedPoint = snapPoint(point);
+      setMousePos(snappedPoint);
+      
+      if (isTouchPanning.current) {
+        const dx = touch.clientX - lastTouchPos.current.x;
+        const dy = touch.clientY - lastTouchPos.current.y;
+        setOffset({ x: offset.x + dx, y: offset.y + dy });
+        lastTouchPos.current = { x: touch.clientX, y: touch.clientY };
+        return;
+      }
+      
+      handleMoveDrawing(snappedPoint);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    
+    if (e.touches.length === 0) {
+      if (isTouchPanning.current) {
+        isTouchPanning.current = false;
+      } else {
+        const point = screenToCanvas(lastTouchPos.current.x, lastTouchPos.current.y);
+        const snappedPoint = snapPoint(point);
+        handleEndDrawing(snappedPoint);
+      }
+      lastTouchDistance.current = 0;
+    }
+  };
+
+  // Lógica de desenho unificada
+  const handleStartDrawing = (snappedPoint: Point) => {
     switch (activeTool) {
       case 'select':
         setDragStart(snappedPoint);
@@ -288,17 +411,7 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    const point = screenToCanvas(e.clientX, e.clientY);
-    const snappedPoint = snapPoint(point);
-    setMousePos(snappedPoint);
-    if (isPanning) {
-      const dx = e.clientX - dragStart.x;
-      const dy = e.clientY - dragStart.y;
-      setOffset({ x: offset.x + dx, y: offset.y + dy });
-      setDragStart({ x: e.clientX, y: e.clientY });
-      return;
-    }
+  const handleMoveDrawing = (snappedPoint: Point) => {
     if (isDrawing && tempWall && drawStart) {
       setTempWall({
         ...tempWall,
@@ -307,14 +420,8 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
     }
   };
 
-  const handleMouseUp = (e: React.MouseEvent) => {
-    if (isPanning) {
-      setIsPanning(false);
-      return;
-    }
+  const handleEndDrawing = (snappedPoint: Point) => {
     if (isDrawing && tempWall && drawStart) {
-      const point = screenToCanvas(e.clientX, e.clientY);
-      const snappedPoint = snapPoint(point);
       const dx = snappedPoint.x - drawStart.x;
       const dy = snappedPoint.y - drawStart.y;
       const length = Math.sqrt(dx * dx + dy * dy);
@@ -409,16 +516,20 @@ export const Canvas2D: React.FC<Canvas2DProps> = ({ className }) => {
   };
 
   return (
-    <div ref={containerRef} className={`relative w-full h-full overflow-hidden bg-gray-50 ${className || ''}`}>
+    <div ref={containerRef} className={`relative w-full h-full overflow-hidden bg-gray-50 touch-none ${className || ''}`}>
       <canvas
         ref={canvasRef}
-        className="block w-full h-full cursor-crosshair"
+        className="block w-full h-full cursor-crosshair touch-none"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => setIsPanning(false)}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{ touchAction: 'none' }}
       />
       
       {/* Controles de Zoom */}
