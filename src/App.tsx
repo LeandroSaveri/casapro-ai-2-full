@@ -1,97 +1,152 @@
-// src/App.tsx (VERSÃO DEFINITIVA)
-import { useState, useEffect } from 'react';
-import { Canvas2D } from './components/canvas/Canvas2D';
-import { Canvas3D } from './components/canvas3d/Canvas3D';
-import { useProjectStore } from './store/projectStore';
+import React, { useState, useEffect } from 'react';
+import { Canvas2D } from '@/components/canvas/Canvas2D';
+import { Canvas3D } from '@/components/canvas3d/Canvas3D';
+import { Toolbar } from '@/components/canvas/ui/Toolbar';
+import { FurniturePanel } from '@/components/canvas/ui/FurniturePanel';
+import { StatusBar } from '@/components/canvas/ui/StatusBar';
+import { ContextMenu } from '@/components/canvas/ui/ContextMenu';
+import { PropertiesPanel } from '@/components/properties/PropertiesPanel';
+import { ExportPanel } from '@/components/export/ExportPanel';
+import { PlanBadge } from '@/components/billing/PlanBadge';
+import { useUIStore } from '@/store/uiStore';
+import { useProjectStore } from '@/store/projectStore';
+
+type ViewMode = '2d' | '3d';
 
 function App() {
-  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
-  const [isLoading, setIsLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>('2d');
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   
+  const { sidebarOpen, activePanel, setActivePanel } = useUIStore();
+  const { selection, clearSelection } = useProjectStore();
+
+  // Fechar context menu ao clicar
   useEffect(() => {
-    // Aguardar hidratação do Zustand
-    const unsubscribe = useProjectStore.persist.onFinishHydration(() => {
-      setIsLoading(false);
-    });
-    
-    // Se já hidratou
-    if (useProjectStore.persist.hasHydrated()) {
-      setIsLoading(false);
-    }
-    
-    return () => unsubscribe();
+    const handleClick = () => setContextMenu(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
   }, []);
 
-  if (isLoading) {
-    return (
-      <div style={{ 
-        width: '100vw', 
-        height: '100vh', 
-        display: 'flex', 
-        flexDirection: 'column',
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: '#f5f5f5',
-        gap: 16
-      }}>
-        <div style={{ fontSize: 24, fontWeight: 'bold' }}>CasaPro</div>
-        <div>Carregando seu projeto...</div>
-      </div>
-    );
-  }
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '1') setViewMode('2d');
+      if (e.key === '2') setViewMode('3d');
+      if (e.key === 'Escape') {
+        clearSelection();
+        setContextMenu(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [clearSelection]);
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
 
   return (
-    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      {/* Toggle 2D/3D */}
-      <div style={{
-        position: 'absolute',
-        top: 16,
-        right: 320,
-        zIndex: 1000,
-        background: 'white',
-        borderRadius: 8,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        padding: 4,
-        display: 'flex',
-        gap: 4
-      }}>
-        <button
-          onClick={() => setViewMode('2d')}
-          style={{
-            padding: '8px 16px',
-            border: 'none',
-            borderRadius: 6,
-            background: viewMode === '2d' ? '#1976d2' : '#f5f5f5',
-            color: viewMode === '2d' ? 'white' : '#333',
-            cursor: 'pointer',
-            fontWeight: viewMode === '2d' ? 'bold' : 'normal',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6
-          }}
+    <div className="h-screen w-screen flex flex-col bg-gray-50 overflow-hidden">
+      {/* Header */}
+      <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm z-10">
+        <div className="flex items-center gap-4">
+          <h1 className="text-xl font-bold text-gray-800">CasaPro AI</h1>
+          <PlanBadge />
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setViewMode('2d')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              viewMode === '2d'
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            2D
+          </button>
+          <button
+            onClick={() => setViewMode('3d')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              viewMode === '3d'
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            3D
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActivePanel(activePanel === 'export' ? null : 'export')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activePanel === 'export'
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Exportar
+          </button>
+          <button
+            onClick={() => setActivePanel(activePanel === 'properties' ? null : 'properties')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activePanel === 'properties'
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Propriedades
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar - Toolbar (apenas em modo 2D) */}
+        {viewMode === '2d' && (
+          <aside className={`w-16 bg-white border-r border-gray-200 flex flex-col items-center py-4 gap-2 transition-all ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <Toolbar />
+          </aside>
+        )}
+
+        {/* Canvas Area */}
+        <main 
+          className="flex-1 relative"
+          onContextMenu={handleContextMenu}
         >
-          <span>📐</span> 2D Planta
-        </button>
-        <button
-          onClick={() => setViewMode('3d')}
-          style={{
-            padding: '8px 16px',
-            border: 'none',
-            borderRadius: 6,
-            background: viewMode === '3d' ? '#1976d2' : '#f5f5f5',
-            color: viewMode === '3d' ? 'white' : '#333',
-            cursor: 'pointer',
-            fontWeight: viewMode === '3d' ? 'bold' : 'normal',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6
-          }}
-        >
-          <span>🏠</span> 3D Vista
-        </button>
+          {viewMode === '2d' ? (
+            <Canvas2D className="w-full h-full" />
+          ) : (
+            <Canvas3D className="w-full h-full" />
+          )}
+          
+          {/* Furniture Panel (apenas em modo 2D) */}
+          {viewMode === '2d' && <FurniturePanel />}
+          
+          {/* Context Menu */}
+          {contextMenu && (
+            <ContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              onClose={() => setContextMenu(null)}
+            />
+          )}
+          
+          {/* Active Panels */}
+          {activePanel === 'properties' && <PropertiesPanel />}
+          {activePanel === 'export' && <ExportPanel />}
+        </main>
       </div>
+
+      {/* Status Bar */}
+      <StatusBar />
       
-      {viewMode === '2d' ? <Canvas2D /> : <Canvas3D />}
+      {/* Mode Indicator */}
+      <div className="absolute bottom-12 right-4 bg-gray-800 text-white px-3 py-1 rounded text-xs font-mono">
+        {viewMode.toUpperCase()} MODE • Press 1/2 to switch
+      </div>
     </div>
   );
 }
