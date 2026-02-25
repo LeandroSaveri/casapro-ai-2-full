@@ -38,6 +38,8 @@ interface ProjectState {
   getWallEndpoints: () => Point[];
   getWallLines: () => { start: Point; end: Point; id: string }[];
 
+  snapToExistingPoint: (point: Point, tolerance?: number) => Point;
+
   reset: () => void;
 }
 
@@ -50,20 +52,58 @@ const initialState = {
   selection: null,
 };
 
+function distance(a: Point, b: Point) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 export const useProjectStore = create<ProjectState>()(
   persist(
     (set, get) => ({
       ...initialState,
 
+      snapToExistingPoint: (point, tolerance = 10) => {
+        const endpoints = get().getWallEndpoints();
+        for (const p of endpoints) {
+          if (distance(p, point) <= tolerance) {
+            return p;
+          }
+        }
+        return point;
+      },
+
       addWall: (wall) => {
         const id = uuidv4();
-        set(state => ({ walls: [...state.walls, { ...wall, id }] }));
+
+        const snappedStart = get().snapToExistingPoint(wall.start);
+        const snappedEnd = get().snapToExistingPoint(wall.end);
+
+        set(state => ({
+          walls: [
+            ...state.walls,
+            {
+              ...wall,
+              id,
+              start: snappedStart,
+              end: snappedEnd,
+            },
+          ],
+        }));
+
         return id;
       },
 
       updateWall: (id, updates) => {
         set(state => ({
-          walls: state.walls.map(w => w.id === id ? { ...w, ...updates } : w)
+          walls: state.walls.map(w =>
+            w.id === id
+              ? {
+                  ...w,
+                  ...updates,
+                }
+              : w
+          ),
         }));
       },
 
@@ -71,83 +111,115 @@ export const useProjectStore = create<ProjectState>()(
         set(state => ({
           walls: state.walls.filter(w => w.id !== id),
           rooms: state.rooms.filter(r => !r.walls?.includes(id)),
-          selection: state.selection?.type === 'wall' && state.selection.id === id ? null : state.selection
+          selection:
+            state.selection?.type === 'wall' && state.selection.id === id
+              ? null
+              : state.selection,
         }));
       },
 
       addRoom: (room) => {
         const id = uuidv4();
-        set(state => ({ rooms: [...state.rooms, { ...room, id }] }));
+        set(state => ({
+          rooms: [...state.rooms, { ...room, id }],
+        }));
         return id;
       },
 
       updateRoom: (id, updates) => {
         set(state => ({
-          rooms: state.rooms.map(r => r.id === id ? { ...r, ...updates } : r)
+          rooms: state.rooms.map(r =>
+            r.id === id ? { ...r, ...updates } : r
+          ),
         }));
       },
 
       removeRoom: (id) => {
         set(state => ({
           rooms: state.rooms.filter(r => r.id !== id),
-          selection: state.selection?.type === 'room' && state.selection.id === id ? null : state.selection
+          selection:
+            state.selection?.type === 'room' && state.selection.id === id
+              ? null
+              : state.selection,
         }));
       },
 
       addDoor: (door) => {
         const id = uuidv4();
-        set(state => ({ doors: [...state.doors, { ...door, id }] }));
+        set(state => ({
+          doors: [...state.doors, { ...door, id }],
+        }));
         return id;
       },
 
       updateDoor: (id, updates) => {
         set(state => ({
-          doors: state.doors.map(d => d.id === id ? { ...d, ...updates } : d)
+          doors: state.doors.map(d =>
+            d.id === id ? { ...d, ...updates } : d
+          ),
         }));
       },
 
       removeDoor: (id) => {
         set(state => ({
           doors: state.doors.filter(d => d.id !== id),
-          selection: state.selection?.type === 'door' && state.selection.id === id ? null : state.selection
+          selection:
+            state.selection?.type === 'door' && state.selection.id === id
+              ? null
+              : state.selection,
         }));
       },
 
       addWindow: (window) => {
         const id = uuidv4();
-        set(state => ({ windows: [...state.windows, { ...window, id }] }));
+        set(state => ({
+          windows: [...state.windows, { ...window, id }],
+        }));
         return id;
       },
 
       updateWindow: (id, updates) => {
         set(state => ({
-          windows: state.windows.map(w => w.id === id ? { ...w, ...updates } : w)
+          windows: state.windows.map(w =>
+            w.id === id ? { ...w, ...updates } : w
+          ),
         }));
       },
 
       removeWindow: (id) => {
         set(state => ({
           windows: state.windows.filter(w => w.id !== id),
-          selection: state.selection?.type === 'window' && state.selection.id === id ? null : state.selection
+          selection:
+            state.selection?.type === 'window' && state.selection.id === id
+              ? null
+              : state.selection,
         }));
       },
 
       addFurniture: (furniture) => {
         const id = uuidv4();
-        set(state => ({ furniture: [...state.furniture, { ...furniture, id }] }));
+        set(state => ({
+          furniture: [...state.furniture, { ...furniture, id }],
+        }));
         return id;
       },
 
       updateFurniture: (id, updates) => {
         set(state => ({
-          furniture: state.furniture.map(f => f.id === id ? { ...f, ...updates } : f)
+          furniture: state.furniture.map(f =>
+            f.id === id ? { ...f, ...updates } : f
+          ),
         }));
       },
 
       removeFurniture: (id) => {
         set(state => ({
           furniture: state.furniture.filter(f => f.id !== id),
-          selection: state.selection?.type === 'furniture' && state.selection.id === id ? null : state.selection
+          selection:
+            state.selection?.type === 'furniture' &&
+            state.selection.id === id
+              ? null
+              : state.selection,
         }));
       },
 
@@ -166,7 +238,7 @@ export const useProjectStore = create<ProjectState>()(
         return get().walls.map(wall => ({
           start: wall.start,
           end: wall.end,
-          id: wall.id
+          id: wall.id,
         }));
       },
 
