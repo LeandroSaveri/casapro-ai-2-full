@@ -1,15 +1,26 @@
-// src/components/properties/PropertiesPanel.tsx
 import { useProjectStore } from '@/store/projectStore';
 import { useUIStore } from '@/store/uiStore';
 import { useMemo } from 'react';
+import type { Wall, Room, Door, Window, Furniture } from '@/types/canvas';
 
 export function PropertiesPanel() {
-  const { selection, walls, rooms, doors, windows, furniture, updateWall, updateRoom, updateDoor, updateWindow, updateFurniture } = useProjectStore();
-  const { activeTool } = useUIStore();
+  const { 
+    selection, 
+    walls, 
+    rooms, 
+    doors, 
+    windows, 
+    furniture, 
+    updateWall, 
+    updateRoom, 
+    updateDoor, 
+    updateWindow, 
+    updateFurniture 
+  } = useProjectStore();
 
   const selectedObject = useMemo(() => {
     if (!selection) return null;
-    
+
     switch (selection.type) {
       case 'wall':
         return walls.find(w => w.id === selection.id);
@@ -26,170 +37,138 @@ export function PropertiesPanel() {
     }
   }, [selection, walls, rooms, doors, windows, furniture]);
 
-  if (!selectedObject) {
+  if (!selectedObject || !selection) {
     return (
-      <div style={{
-        position: 'absolute',
-        top: 80,
-        right: 16,
-        width: 260,
-        background: 'white',
-        borderRadius: 8,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        padding: 16,
-        zIndex: 100
-      }}>
-        <h4 style={{ margin: '0 0 12px 0', color: '#666' }}>Propriedades</h4>
-        <p style={{ color: '#999', fontSize: 13 }}>Selecione um objeto para editar</p>
+      <div className="absolute right-4 top-20 w-72 bg-white rounded-lg shadow-xl border border-gray-200 p-4">
+        <h3 className="font-semibold text-gray-800 mb-2">Propriedades</h3>
+        <p className="text-gray-500 text-sm">Selecione um objeto para editar</p>
       </div>
     );
   }
 
+  const handleUpdate = (updates: Partial<Wall | Room | Door | Window | Furniture>) => {
+    if (!selection) return;
+    
+    switch (selection.type) {
+      case 'wall':
+        updateWall(selection.id, updates as Partial<Wall>);
+        break;
+      case 'room':
+        updateRoom(selection.id, updates as Partial<Room>);
+        break;
+      case 'door':
+        updateDoor(selection.id, updates as Partial<Door>);
+        break;
+      case 'window':
+        updateWindow(selection.id, updates as Partial<Window>);
+        break;
+      case 'furniture':
+        updateFurniture(selection.id, updates as Partial<Furniture>);
+        break;
+    }
+  };
+
   return (
-    <div style={{
-      position: 'absolute',
-      top: 80,
-      right: 16,
-      width: 260,
-      background: 'white',
-      borderRadius: 8,
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-      padding: 16,
-      zIndex: 100,
-      maxHeight: 'calc(100vh - 120px)',
-      overflowY: 'auto'
-    }}>
-      <h4 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-        {getIcon(selection!.type)} {getTitle(selection!.type)}
-      </h4>
+    <div className="absolute right-4 top-20 w-72 bg-white rounded-lg shadow-xl border border-gray-200 p-4 max-h-[80vh] overflow-y-auto">
+      <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+        <span>{getIcon(selection.type)}</span>
+        {getTitle(selection.type)}
+      </h3>
 
       {'thickness' in selectedObject && (
-        <PropertyGroup title="Dimensões">
+        <div className="space-y-3 mb-4">
           <NumberInput
             label="Espessura (cm)"
-            value={selectedObject.thickness}
-            onChange={(v) => updateWall(selectedObject.id, { thickness: v })}
+            value={selectedObject.thickness || 5}
+            onChange={(v) => handleUpdate({ thickness: v })}
             min={5}
             max={50}
+          />
+          {'height' in selectedObject && (
+            <NumberInput
+              label="Altura (cm)"
+              value={selectedObject.height || 280}
+              onChange={(v) => handleUpdate({ height: v })}
+              min={100}
+              max={500}
+            />
+          )}
+        </div>
+      )}
+
+      {'color' in selectedObject && (
+        <div className="mb-4">
+          <ColorPicker
+            label="Cor"
+            value={selectedObject.color || '#E3F2FD'}
+            onChange={(v) => handleUpdate({ color: v })}
+          />
+        </div>
+      )}
+
+      {'width' in selectedObject && 'height' in selectedObject && 'rotation' in selectedObject && (
+        <div className="space-y-3 mb-4">
+          <NumberInput
+            label="Largura (cm)"
+            value={selectedObject.width}
+            onChange={(v) => handleUpdate({ width: v })}
+            min={10}
+            max={500}
           />
           <NumberInput
             label="Altura (cm)"
             value={selectedObject.height}
-            onChange={(v) => updateWall(selectedObject.id, { height: v })}
-            min={100}
-            max={500}
-          />
-        </PropertyGroup>
-      )}
-
-      {'color' in selectedObject && (
-        <PropertyGroup title="Aparência">
-          <ColorPicker
-            label="Cor"
-            value={selectedObject.color}
-            onChange={(v) => {
-              if (selection?.type === 'furniture') updateFurniture(selectedObject.id, { color: v });
-              if (selection?.type === 'room') updateRoom(selectedObject.id, { color: v });
-            }}
-          />
-        </PropertyGroup>
-      )}
-
-      {'width' in selectedObject && 'height' in selectedObject && 'rotation' in selectedObject && (
-        <PropertyGroup title="Transformação">
-          <NumberInput
-            label="Largura (cm)"
-            value={selectedObject.width}
-            onChange={(v) => updateFurniture(selectedObject.id, { width: v })}
+            onChange={(v) => handleUpdate({ height: v })}
             min={10}
             max={500}
           />
           <NumberInput
-            label="Profundidade (cm)"
-            value={selectedObject.height}
-            onChange={(v) => updateFurniture(selectedObject.id, { height: v })}
-            min={10}
-            max={500}
-          />
-          <NumberInput
-            label="Rotação (graus)"
+            label="Rotação (°)"
             value={Math.round((selectedObject.rotation * 180) / Math.PI)}
-            onChange={(v) => updateFurniture(selectedObject.id, { rotation: (v * Math.PI) / 180 })}
+            onChange={(v) => handleUpdate({ rotation: (v * Math.PI) / 180 })}
             min={0}
             max={360}
             step={15}
           />
-        </PropertyGroup>
+        </div>
       )}
 
       {'name' in selectedObject && (
-        <PropertyGroup title="Informações">
+        <div className="mb-4">
           <TextInput
             label="Nome"
             value={selectedObject.name}
-            onChange={(v) => {
-              if (selection?.type === 'room') updateRoom(selectedObject.id, { name: v });
-            }}
+            onChange={(v) => handleUpdate({ name: v })}
           />
           {'area' in selectedObject && (
-            <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
+            <p className="text-sm text-gray-600 mt-2">
               Área: {selectedObject.area.toFixed(2)} m²
-            </div>
+            </p>
           )}
-        </PropertyGroup>
+        </div>
       )}
-
-      <button
-        onClick={() => {
-          const { removeWall, removeRoom, removeDoor, removeWindow, removeFurniture, clearSelection } = useProjectStore.getState();
-          switch (selection?.type) {
-            case 'wall': removeWall(selection.id); break;
-            case 'room': removeRoom(selection.id); break;
-            case 'door': removeDoor(selection.id); break;
-            case 'window': removeWindow(selection.id); break;
-            case 'furniture': removeFurniture(selection.id); break;
-          }
-          clearSelection();
-        }}
-        style={{
-          width: '100%',
-          padding: '10px',
-          marginTop: 16,
-          background: '#ffebee',
-          color: '#c62828',
-          border: '1px solid #ef9a9a',
-          borderRadius: 4,
-          cursor: 'pointer',
-          fontWeight: 500
-        }}
-      >
-        🗑️ Excluir {getTitle(selection!.type).toLowerCase()}
-      </button>
     </div>
   );
 }
 
-// Componentes auxiliares
-function PropertyGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #e0e0e0' }}>
-      <h5 style={{ margin: '0 0 12px 0', fontSize: 12, textTransform: 'uppercase', color: '#999' }}>{title}</h5>
-      {children}
-    </div>
-  );
-}
-
-function NumberInput({ label, value, onChange, min, max, step = 1 }: { 
-  label: string; 
-  value: number; 
+function NumberInput({ 
+  label, 
+  value, 
+  onChange, 
+  min, 
+  max, 
+  step = 1 
+}: { 
+  label: string;
+  value: number;
   onChange: (v: number) => void;
   min?: number;
   max?: number;
   step?: number;
 }) {
   return (
-    <div style={{ marginBottom: 12 }}>
-      <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 4 }}>{label}</label>
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       <input
         type="number"
         value={Math.round(value)}
@@ -197,65 +176,57 @@ function NumberInput({ label, value, onChange, min, max, step = 1 }: {
         min={min}
         max={max}
         step={step}
-        style={{
-          width: '100%',
-          padding: '6px 10px',
-          border: '1px solid #ddd',
-          borderRadius: 4,
-          fontSize: 14
-        }}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
     </div>
   );
 }
 
-function TextInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function TextInput({ 
+  label, 
+  value, 
+  onChange 
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (v: string) => void; 
+}) {
   return (
-    <div style={{ marginBottom: 12 }}>
-      <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 4 }}>{label}</label>
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: '100%',
-          padding: '6px 10px',
-          border: '1px solid #ddd',
-          borderRadius: 4,
-          fontSize: 14
-        }}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
     </div>
   );
 }
 
-function ColorPicker({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function ColorPicker({ 
+  label, 
+  value, 
+  onChange 
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (v: string) => void; 
+}) {
   const colors = ['#E3F2FD', '#F3E5F5', '#E8F5E9', '#FFF3E0', '#FCE4EC', '#E0F2F1', '#424242', '#8d6e63', '#fff8e1', '#ffffff'];
-  
+
   return (
-    <div style={{ marginBottom: 12 }}>
-      <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 4 }}>{label}</label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+      <div className="grid grid-cols-5 gap-2">
         {colors.map(c => (
           <button
             key={c}
             onClick={() => onChange(c)}
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 4,
-              background: c,
-              border: value === c ? '2px solid #1976d2' : '1px solid #ddd',
-              cursor: 'pointer'
-            }}
+            className={`w-8 h-8 rounded-full border-2 ${value === c ? 'border-blue-500' : 'border-gray-200'}`}
+            style={{ backgroundColor: c }}
           />
         ))}
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          style={{ width: 28, height: 28, padding: 0, border: 'none' }}
-        />
       </div>
     </div>
   );
